@@ -18,6 +18,9 @@ namespace dsh_deploy.Services
         private readonly ProcessService _processService;
         private readonly ConfigService _configService;
         private readonly Dispatcher _dispatcher;
+        private CrashRecoveryService? _crashRecoveryService;
+        private UpdateService? _updateService;
+        private HealthCheckService? _healthCheckService;
 
         private ServiceStatus _currentStatus;
         private DispatcherTimer? _statusTimer;
@@ -47,6 +50,21 @@ namespace dsh_deploy.Services
         public ConfigService ConfigService => _configService;
 
         /// <summary>
+        /// 崩溃恢复服务
+        /// </summary>
+        public CrashRecoveryService? CrashRecoveryService => _crashRecoveryService;
+
+        /// <summary>
+        /// 更新服务
+        /// </summary>
+        public UpdateService? UpdateService => _updateService;
+
+        /// <summary>
+        /// 健康检查服务
+        /// </summary>
+        public HealthCheckService? HealthCheckService => _healthCheckService;
+
+        /// <summary>
         /// 当前状态
         /// </summary>
         public ServiceStatus CurrentStatus => _currentStatus;
@@ -64,6 +82,19 @@ namespace dsh_deploy.Services
             _logService.Info("正在初始化DSH服务...");
             
             await _configService.LoadAsync();
+            
+            // 初始化崩溃恢复服务
+            _crashRecoveryService = new CrashRecoveryService(_logService, this, _dispatcher);
+            _crashRecoveryService.UpdateConfig(_configService.Current.CrashRecovery);
+            
+            // 初始化更新服务
+            _updateService = new UpdateService(_logService, _configService);
+            _updateService.UpdateConfig(_configService.Current.AutoUpdate);
+            
+            // 初始化健康检查服务
+            _healthCheckService = new HealthCheckService(_logService, this);
+            _healthCheckService.UpdateConfig(_configService.Current.HealthCheck);
+            
             await RefreshStatusAsync();
             
             _logService.Info("DSH服务初始化完成");

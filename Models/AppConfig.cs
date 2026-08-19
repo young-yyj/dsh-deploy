@@ -101,5 +101,23 @@ namespace dsh_deploy.Models
         /// </summary>
         [JsonPropertyName("showTrayIcon")]
         public bool ShowTrayIcon { get; set; } = true;
+
+        /// <summary>
+        /// 崩溃恢复配置
+        /// </summary>
+        [JsonPropertyName("crashRecovery")]
+        public CrashRecoveryConfig CrashRecovery { get; set; } = new CrashRecoveryConfig();
+
+        /// <summary>
+        /// 自动更新配置
+        /// </summary>
+        [JsonPropertyName("autoUpdate")]
+        public UpdateConfig AutoUpdate { get; set; } = new UpdateConfig();
+
+        /// <summary>
+        /// 健康检查配置
+        /// </summary>
+        [JsonPropertyName("healthCheck")]
+        public HealthCheckConfig HealthCheck { get; set; } = new HealthCheckConfig();
     }
 }
