@@ -123,9 +123,17 @@ namespace dsh_deploy.Services
         /// </summary>
         private async Task<string> GetCurrentVersionAsync()
         {
+            Process? process = null;
             try
             {
-                var process = new Process
+                // 安全验证命令
+                if (!SecurityService.IsCommandSafe("dsh"))
+                {
+                    _logService.Warn("获取当前版本失败: 不安全的命令");
+                    return "unknown";
+                }
+
+                process = new Process
                 {
                     StartInfo = new ProcessStartInfo
                     {
@@ -145,8 +153,12 @@ namespace dsh_deploy.Services
             }
             catch (Exception ex)
             {
-                _logService.Warn($"获取当前版本失败: {ex.Message}");
+                _logService.Warn($"获取当前版本失败: {SecurityService.SanitizeLogMessage(ex.Message)}");
                 return "unknown";
+            }
+            finally
+            {
+                process?.Dispose();
             }
         }
 
@@ -157,6 +169,13 @@ namespace dsh_deploy.Services
         {
             try
             {
+                // 安全验证URL
+                if (!SecurityService.IsUrlSafe(_config.UpdateUrl))
+                {
+                    _logService.Warn($"获取最新版本失败: 不安全的URL '{_config.UpdateUrl}'");
+                    return "unknown";
+                }
+
                 _httpClient ??= new HttpClient();
                 
                 var response = await _httpClient.GetStringAsync(_config.UpdateUrl);
@@ -172,7 +191,7 @@ namespace dsh_deploy.Services
             }
             catch (Exception ex)
             {
-                _logService.Warn($"获取最新版本失败: {ex.Message}");
+                _logService.Warn($"获取最新版本失败: {SecurityService.SanitizeLogMessage(ex.Message)}");
                 return "unknown";
             }
         }
@@ -182,11 +201,19 @@ namespace dsh_deploy.Services
         /// </summary>
         public async Task<bool> PerformUpdateAsync()
         {
+            Process? process = null;
             try
             {
+                // 安全验证命令
+                if (!SecurityService.IsCommandSafe("npm"))
+                {
+                    _logService.Error("执行更新失败: 不安全的命令");
+                    return false;
+                }
+
                 _logService.Info("正在执行更新...");
 
-                var process = new Process
+                process = new Process
                 {
                     StartInfo = new ProcessStartInfo
                     {
@@ -212,14 +239,18 @@ namespace dsh_deploy.Services
                 }
                 else
                 {
-                    _logService.Error($"更新失败: {error}");
+                    _logService.Error($"更新失败: {SecurityService.SanitizeLogMessage(error)}");
                     return false;
                 }
             }
             catch (Exception ex)
             {
-                _logService.Error($"执行更新失败: {ex.Message}");
+                _logService.Error($"执行更新失败: {SecurityService.SanitizeLogMessage(ex.Message)}");
                 return false;
+            }
+            finally
+            {
+                process?.Dispose();
             }
         }
 

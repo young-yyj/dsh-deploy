@@ -193,6 +193,24 @@ namespace dsh_deploy.Services
         {
             try
             {
+                // 安全验证：防止路径遍历攻击
+                var allowedDirectory = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
+                if (!SecurityService.IsPathSafe(filePath, allowedDirectory))
+                {
+                    // 如果不在桌面，检查是否在用户文档目录
+                    allowedDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+                    if (!SecurityService.IsPathSafe(filePath, allowedDirectory))
+                    {
+                        Error($"导出日志失败: 不安全的文件路径 '{filePath}'");
+                        return;
+                    }
+                }
+
+                // 清理文件名
+                var directory = Path.GetDirectoryName(filePath);
+                var fileName = SecurityService.SanitizeFileName(Path.GetFileName(filePath));
+                var safePath = Path.Combine(directory ?? allowedDirectory, fileName);
+
                 var sb = new StringBuilder();
                 sb.AppendLine("DSH Deploy 日志导出");
                 sb.AppendLine($"导出时间: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
@@ -204,12 +222,12 @@ namespace dsh_deploy.Services
                     sb.AppendLine(log.FullDisplay);
                 }
 
-                await File.WriteAllTextAsync(filePath, sb.ToString(), Encoding.UTF8);
-                Info($"日志已导出到: {filePath}");
+                await File.WriteAllTextAsync(safePath, sb.ToString(), Encoding.UTF8);
+                Info($"日志已导出到: {safePath}");
             }
             catch (Exception ex)
             {
-                Error($"导出日志失败: {ex.Message}");
+                Error($"导出日志失败: {SecurityService.SanitizeLogMessage(ex.Message)}");
                 throw;
             }
         }

@@ -115,6 +115,19 @@ namespace dsh_deploy.Services
         /// <returns>是否成功</returns>
         public async Task<bool> StartDshServiceAsync(string command = "dsh", string args = "web")
         {
+            // 安全验证
+            if (!SecurityService.IsCommandSafe(command))
+            {
+                _logService.Error($"启动DSH服务失败: 不安全的命令 '{command}'");
+                return false;
+            }
+
+            if (!SecurityService.AreArgumentsSafe(args))
+            {
+                _logService.Error($"启动DSH服务失败: 不安全的参数 '{args}'");
+                return false;
+            }
+
             return await Task.Run(() =>
             {
                 try
@@ -139,7 +152,7 @@ namespace dsh_deploy.Services
                 }
                 catch (Exception ex)
                 {
-                    _logService.Error($"启动DSH服务失败: {ex.Message}");
+                    _logService.Error($"启动DSH服务失败: {SecurityService.SanitizeLogMessage(ex.Message)}");
                     return false;
                 }
             });

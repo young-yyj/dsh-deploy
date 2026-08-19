@@ -83,6 +83,13 @@ namespace dsh_deploy.Services
             
             try
             {
+                // 安全验证URL
+                if (!SecurityService.IsUrlSafe(_config.HealthUrl))
+                {
+                    HandleFailure($"不安全的URL: {_config.HealthUrl}");
+                    return _healthStatus;
+                }
+
                 _healthStatus.State = HealthState.Checking;
                 _healthStatus.LastCheckTime = DateTime.Now;
 
@@ -116,7 +123,7 @@ namespace dsh_deploy.Services
             catch (HttpRequestException ex)
             {
                 stopwatch.Stop();
-                HandleFailure($"连接失败: {ex.Message}");
+                HandleFailure($"连接失败: {SecurityService.SanitizeLogMessage(ex.Message)}");
             }
             catch (Exception ex)
             {
