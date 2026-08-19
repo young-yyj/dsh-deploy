@@ -65,6 +65,9 @@ namespace dsh_deploy.Services
             var updateService = new UpdateService(logService, configService);
             Register(updateService);
 
+            var webUiUpdateService = new WebUiUpdateService(logService, configService);
+            Register(webUiUpdateService);
+
             var healthCheckService = new HealthCheckService(logService, dshService);
             Register(healthCheckService);
 

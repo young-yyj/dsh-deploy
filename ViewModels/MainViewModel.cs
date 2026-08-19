@@ -55,6 +55,7 @@ namespace dsh_deploy.ViewModels
             MinimizeToTrayCommand = new RelayCommand(MinimizeToTray);
             RunDiagnosticsCommand = new AsyncRelayCommand(RunDiagnosticsAsync);
             CleanupOrphanProcessesCommand = new AsyncRelayCommand(CleanupOrphanProcessesAsync);
+            OpenUpgradeWindowCommand = new RelayCommand(OpenUpgradeWindow);
 
             // 订阅状态变化
             _dshService.StatusChanged += OnStatusChanged;
@@ -194,6 +195,7 @@ namespace dsh_deploy.ViewModels
         public ICommand MinimizeToTrayCommand { get; } = null!;
         public ICommand RunDiagnosticsCommand { get; } = null!;
         public ICommand CleanupOrphanProcessesCommand { get; } = null!;
+        public ICommand OpenUpgradeWindowCommand { get; } = null!;
 
         // 代理ServiceControlViewModel的命令
         public ICommand StartCommand => _serviceControlViewModel!.StartCommand;
@@ -234,6 +236,15 @@ namespace dsh_deploy.ViewModels
         private void MinimizeToTray()
         {
             _trayService?.HideMainWindow();
+        }
+
+        private void OpenUpgradeWindow()
+        {
+            var window = new UpgradeWindow
+            {
+                Owner = System.Windows.Application.Current.MainWindow
+            };
+            window.ShowDialog();
         }
 
         private async Task CleanupOrphanProcessesAsync()

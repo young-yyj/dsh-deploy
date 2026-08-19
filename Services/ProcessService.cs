@@ -32,28 +32,35 @@ namespace dsh_deploy.Services
                 var processes = new List<ProcessInfo>();
                 try
                 {
-                    // 获取所有node.exe进程
-                    var nodeProcesses = Process.GetProcessesByName("node");
+                    // DSH 使用 3080-3090 端口：先取这些端口的占用进程 PID
+                    var dshPids = PortService.GetPortProcessIdMap()
+                        .Where(kv => kv.Key >= 3080 && kv.Key <= 3090)
+                        .Select(kv => kv.Value)
+                        .ToHashSet();
 
-                    foreach (var process in nodeProcesses)
+                    if (dshPids.Count == 0)
+                    {
+                        return processes;
+                    }
+
+                    foreach (var process in Process.GetProcessesByName("node"))
                     {
                         try
                         {
-                            // 检查是否是DSH进程（通过检查端口占用）
-                            bool isDshProcess = IsDshProcessByPort(process.Id);
-                            
-                            if (isDshProcess)
+                            if (!dshPids.Contains(process.Id))
                             {
-                                processes.Add(new ProcessInfo
-                                {
-                                    ProcessId = process.Id,
-                                    ProcessName = process.ProcessName,
-                                    CommandLine = "dsh web",
-                                    StartTime = process.StartTime,
-                                    MemoryUsage = process.WorkingSet64,
-                                    IsDshProcess = true
-                                });
+                                continue;
                             }
+
+                            processes.Add(new ProcessInfo
+                            {
+                                ProcessId = process.Id,
+                                ProcessName = process.ProcessName,
+                                CommandLine = "dsh web",
+                                StartTime = process.StartTime,
+                                MemoryUsage = process.WorkingSet64,
+                                IsDshProcess = true
+                            });
                         }
                         catch (Exception ex)
                         {
@@ -71,40 +78,6 @@ namespace dsh_deploy.Services
                 }
                 return processes;
             });
-        }
-
-        /// <summary>
-        /// 通过端口占用判断是否是DSH进程
-        /// </summary>
-        private bool IsDshProcessByPort(int processId)
-        {
-            try
-            {
-                // 检查进程是否占用了DSH常用端口（3080）
-                var portService = new PortService(_logService);
-                var portInfo = portService.CheckPortAsync(3080, quickCheck: true).Result;
-                
-                if (portInfo.IsInUse && portInfo.ProcessId == processId)
-                {
-                    return true;
-                }
-                
-                // 检查进程是否占用了其他DSH端口（3081-3090）
-                for (int port = 3081; port <= 3090; port++)
-                {
-                    var info = portService.CheckPortAsync(port, quickCheck: true).Result;
-                    if (info.IsInUse && info.ProcessId == processId)
-                    {
-                        return true;
-                    }
-                }
-                
-                return false;
-            }
-            catch
-            {
-                return false;
-            }
         }
 
         /// <summary>

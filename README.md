@@ -77,6 +77,13 @@ dsh-deploy/
 - ✅ 操作反馈提示
 - ✅ 响应式布局
 
+### 7. 插件升级
+- ✅ dsh-web-ui 一键升级（pnpm + 淘宝镜像）
+- ✅ 当前/最新版本检测
+- ✅ 升级前自动停止 DSH，完成后询问重启
+- ✅ 升级过程实时输出、支持取消
+- ✅ 常见错误诊断提示（EPERM/超时/网络）
+
 ## 架构设计
 
 ### MVVM架构
@@ -138,6 +145,7 @@ dotnet run
 3. **重启服务**：点击"重启服务"按钮
 4. **打开Web**：点击"打开Web界面"按钮
 5. **查看日志**：在日志区域查看实时日志
+6. **升级插件**：点击"升级 dsh-web-ui"按钮，在弹窗中检测更新或一键升级（升级前会提示关闭 DSH，完成后询问是否重启）
 
 ### 配置文件
 
@@ -151,7 +159,11 @@ dotnet run
   "notifications": true,
   "soundEnabled": true,
   "logLevel": "INFO",
-  "statusCheckInterval": 30
+  "statusCheckInterval": 30,
+  "webUiUpdate": {
+    "packageName": "@linxin666/dsh-web-ui-all",
+    "registryUrl": "https://registry.npmmirror.com"
+  }
 }
 ```
 

@@ -17,7 +17,8 @@ namespace dsh_deploy.Services
             "dsh",
             "node",
             "npm",
-            "npx"
+            "npx",
+            "pnpm"
         };
 
         // 允许的参数模式

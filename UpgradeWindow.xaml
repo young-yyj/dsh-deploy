@@ -1,0 +1,197 @@
+<Window x:Class="dsh_deploy.UpgradeWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="升级 dsh-web-ui"
+        Height="500" Width="560"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        Background="#F5F5F5"
+        Closing="UpgradeWindow_Closing">
+    
+    <Window.Resources>
+        <!-- 主按钮样式（与主窗口一致） -->
+        <Style x:Key="PrimaryButton" TargetType="Button">
+            <Setter Property="Background" Value="#2196F3"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Padding" Value="15,8"/>
+            <Setter Property="Margin" Value="5"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" 
+                                CornerRadius="4" 
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#1976D2"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Background" Value="#1565C0"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Background" Value="#BDBDBD"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        
+        <Style x:Key="SuccessButton" TargetType="Button" BasedOn="{StaticResource PrimaryButton}">
+            <Setter Property="Background" Value="#4CAF50"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#388E3C"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        
+        <Style x:Key="NeutralButton" TargetType="Button">
+            <Setter Property="Background" Value="#757575"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Padding" Value="15,8"/>
+            <Setter Property="Margin" Value="5"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" 
+                                CornerRadius="4" 
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#616161"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Background" Value="#424242"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Background" Value="#BDBDBD"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+    </Window.Resources>
+    
+    <Grid Margin="15">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+        
+        <!-- 标题 -->
+        <StackPanel Grid.Row="0">
+            <TextBlock Text="dsh-web-ui 插件升级" 
+                       FontSize="16" 
+                       FontWeight="Bold" 
+                       Foreground="#212121"/>
+            <TextBlock Text="升级 @linxin666/dsh-web-ui-all 插件全家桶" 
+                       FontSize="12" 
+                       Foreground="#9E9E9E" 
+                       Margin="0,4,0,0"/>
+        </StackPanel>
+        
+        <!-- 版本信息 -->
+        <Grid Grid.Row="1" Margin="0,15,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            
+            <Border Grid.Column="0" Background="White" CornerRadius="6" Padding="12,10" Margin="0,0,5,0">
+                <StackPanel>
+                    <TextBlock Text="当前版本" FontSize="11" Foreground="#757575"/>
+                    <TextBlock Text="{Binding InstalledVersion}" FontSize="15" FontWeight="Bold" Foreground="#212121" Margin="0,3,0,0"/>
+                </StackPanel>
+            </Border>
+            
+            <Border Grid.Column="1" Background="White" CornerRadius="6" Padding="12,10" Margin="5,0,0,0">
+                <StackPanel>
+                    <TextBlock Text="最新版本" FontSize="11" Foreground="#757575"/>
+                    <TextBlock Text="{Binding LatestVersion}" FontSize="15" FontWeight="Bold" Foreground="#212121" Margin="0,3,0,0"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+        
+        <!-- 状态行 -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,12,0,0">
+            <Ellipse Width="10" Height="10" Fill="{Binding StatusColor}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+            <TextBlock Text="{Binding StatusText}" FontSize="12" Foreground="#424242" VerticalAlignment="Center"/>
+        </StackPanel>
+        
+        <!-- 操作按钮 -->
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,10,0,0">
+            <Button Content="检测更新" 
+                    Command="{Binding CheckUpdateCommand}"
+                    Style="{StaticResource PrimaryButton}"
+                    Width="110"/>
+            <Button Content="一键升级" 
+                    Command="{Binding UpgradeCommand}"
+                    Style="{StaticResource SuccessButton}"
+                    Width="110"/>
+            <Button Content="取消升级" 
+                    Command="{Binding CancelCommand}"
+                    Style="{StaticResource NeutralButton}"
+                    Width="110"
+                    Visibility="{Binding IsUpgrading, Converter={StaticResource BoolToVis}}"/>
+            <Button Content="关闭" 
+                    Command="{Binding CloseCommand}"
+                    Style="{StaticResource NeutralButton}"
+                    Width="110"/>
+        </StackPanel>
+        
+        <!-- 进度条 -->
+        <ProgressBar Grid.Row="4" 
+                     Height="4" 
+                     Margin="0,12,0,0"
+                     IsIndeterminate="{Binding IsUpgrading}"
+                     Visibility="{Binding IsUpgrading, Converter={StaticResource BoolToVis}}"/>
+        
+        <!-- 实时输出 -->
+        <Border Grid.Row="5" Background="White" CornerRadius="6" Margin="0,10,0,0">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <TextBlock Grid.Row="0" Text="升级输出" 
+                           FontSize="11" 
+                           Foreground="#757575" 
+                           Margin="10,8"/>
+                <ListBox x:Name="OutputList" 
+                         Grid.Row="1" 
+                         ItemsSource="{Binding Output}"
+                         Background="Transparent"
+                         BorderThickness="0"
+                         FontFamily="Consolas"
+                         FontSize="12"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding}" 
+                                       TextWrapping="Wrap" 
+                                       Foreground="#424242"
+                                       Margin="10,2"/>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

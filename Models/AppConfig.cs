@@ -115,6 +115,12 @@ namespace dsh_deploy.Models
         public UpdateConfig AutoUpdate { get; set; } = new UpdateConfig();
 
         /// <summary>
+        /// dsh-web-ui 升级配置
+        /// </summary>
+        [JsonPropertyName("webUiUpdate")]
+        public WebUiUpdateConfig WebUiUpdate { get; set; } = new WebUiUpdateConfig();
+
+        /// <summary>
         /// 健康检查配置
         /// </summary>
         [JsonPropertyName("healthCheck")]

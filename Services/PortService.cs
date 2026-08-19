@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Net.NetworkInformation;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using dsh_deploy.Models;
 
@@ -19,6 +20,12 @@ namespace dsh_deploy.Services
         private DateTime _lastCacheUpdate = DateTime.MinValue;
         private readonly TimeSpan _cacheTimeout = TimeSpan.FromSeconds(5);
         private readonly object _cacheLock = new();
+
+        // 端口→PID 映射缓存（netstat 解析，带短 TTL）
+        private static readonly Dictionary<int, int> _portPidCache = new();
+        private static DateTime _portPidCacheTime = DateTime.MinValue;
+        private static readonly object _portPidLock = new();
+        private static readonly TimeSpan PortPidCacheTtl = TimeSpan.FromSeconds(3);
 
         public PortService(LogService logService)
         {
@@ -78,13 +85,28 @@ namespace dsh_deploy.Services
 
                         if (!quickCheck)
                         {
-                            // 获取进程信息
+                            // 通过 netstat 获取占用端口的进程信息
                             try
                             {
-                                // 注意：在.NET中获取进程ID需要使用其他方法
-                                // 这里简化处理，实际项目中可能需要P/Invoke
-                                portInfo.ProcessId = null;
-                                portInfo.ProcessName = "Unknown";
+                                var pidMap = GetPortProcessIdMap();
+                                if (pidMap.TryGetValue(port, out var pid))
+                                {
+                                    portInfo.ProcessId = pid;
+                                    try
+                                    {
+                                        using var process = Process.GetProcessById(pid);
+                                        portInfo.ProcessName = process.ProcessName;
+                                    }
+                                    catch
+                                    {
+                                        portInfo.ProcessName = "Unknown";
+                                    }
+                                }
+                                else
+                                {
+                                    portInfo.ProcessId = null;
+                                    portInfo.ProcessName = "Unknown";
+                                }
                             }
                             catch (Exception ex)
                             {
@@ -190,6 +212,96 @@ namespace dsh_deploy.Services
                 _portCache.Clear();
                 _lastCacheUpdate = DateTime.MinValue;
             }
+        }
+
+        /// <summary>
+        /// 获取端口→进程ID映射（netstat 解析，带短 TTL 缓存）
+        /// </summary>
+        public static Dictionary<int, int> GetPortProcessIdMap()
+        {
+            lock (_portPidLock)
+            {
+                if (DateTime.Now - _portPidCacheTime < PortPidCacheTtl && _portPidCache.Count > 0)
+                {
+                    return new Dictionary<int, int>(_portPidCache);
+                }
+            }
+
+            var map = BuildPortProcessIdMap();
+
+            lock (_portPidLock)
+            {
+                _portPidCache.Clear();
+                foreach (var kv in map)
+                {
+                    _portPidCache[kv.Key] = kv.Value;
+                }
+                _portPidCacheTime = DateTime.Now;
+            }
+
+            return new Dictionary<int, int>(map);
+        }
+
+        /// <summary>
+        /// 通过 netstat -ano 构建端口→PID 映射
+        /// </summary>
+        private static Dictionary<int, int> BuildPortProcessIdMap()
+        {
+            var map = new Dictionary<int, int>();
+            try
+            {
+                using var process = new Process
+                {
+                    StartInfo = new ProcessStartInfo
+                    {
+                        FileName = "netstat",
+                        Arguments = "-ano -p tcp",
+                        UseShellExecute = false,
+                        RedirectStandardOutput = true,
+                        CreateNoWindow = true,
+                        StandardOutputEncoding = Encoding.UTF8
+                    }
+                };
+
+                if (!process.Start())
+                {
+                    return map;
+                }
+
+                var output = process.StandardOutput.ReadToEnd();
+                if (!process.WaitForExit(10000))
+                {
+                    try { process.Kill(); } catch { }
+                    return map;
+                }
+
+                // 只解析地址/端口/PID 列（均为 ASCII，不受系统语言影响）
+                var regex = new Regex(
+                    @"^\s*TCP\s+(?<local>[0-9\.\[\]]+):(?<port>\d+)\s+[0-9\.\[\]]+:\d+\s+\S+\s+(?<pid>\d+)\s*$",
+                    RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+                foreach (var line in output.Split('\n'))
+                {
+                    var match = regex.Match(line);
+                    if (!match.Success)
+                    {
+                        continue;
+                    }
+
+                    if (int.TryParse(match.Groups["port"].Value, out var port) &&
+                        int.TryParse(match.Groups["pid"].Value, out var pid) &&
+                        !map.ContainsKey(port))
+                    {
+                        map[port] = pid;
+                    }
+                }
+            }
+            catch
+            {
+                // netstat 失败时返回空表，调用方自行降级
+            }
+
+            return map;
         }
     }
 }
