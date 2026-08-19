@@ -247,12 +247,47 @@ namespace dsh_deploy.ViewModels
                 
                 if (cleanedCount > 0)
                 {
-                    _dshService.LogService.Info($"已清理 {cleanedCount} 个孤儿进程");
-                    await RefreshStatusAsync();
+                    _dshService.LogService.Info($"已清理 {cleanedCount} 个孤儿进程，端口已释放");
+                    
+                    // 等待端口完全释放
+                    await Task.Delay(1000);
+                    
+                    // 强制刷新状态
+                    await _dshService.RefreshStatusAsync(forceRefresh: true);
+                    
+                    // 更新UI状态
+                    var newStatus = _dshService.CurrentStatus;
+                    StatusText = newStatus.StateText;
+                    StatusColor = newStatus.StateColor;
+                    IsServiceRunning = newStatus.IsOnline;
                 }
                 else
                 {
-                    _dshService.LogService.Info("未发现孤儿进程");
+                    _dshService.LogService.Info("未发现孤儿进程，尝试直接清理端口...");
+                    
+                    // 如果没有检测到孤儿进程，尝试强制清理端口
+                    var forceCleaned = await orphanProcessService.ForceReleasePortAsync(Port);
+                    
+                    if (forceCleaned)
+                    {
+                        _dshService.LogService.Info("端口已强制释放");
+                        
+                        // 等待端口完全释放
+                        await Task.Delay(1000);
+                        
+                        // 强制刷新状态
+                        await _dshService.RefreshStatusAsync(forceRefresh: true);
+                        
+                        // 更新UI状态
+                        var newStatus = _dshService.CurrentStatus;
+                        StatusText = newStatus.StateText;
+                        StatusColor = newStatus.StateColor;
+                        IsServiceRunning = newStatus.IsOnline;
+                    }
+                    else
+                    {
+                        _dshService.LogService.Warn("无法释放端口，请手动关闭占用端口的程序");
+                    }
                 }
             }
             catch (Exception ex)

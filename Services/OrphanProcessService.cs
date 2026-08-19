@@ -26,42 +26,121 @@ namespace dsh_deploy.Services
         /// </summary>
         /// <param name="port">端口号</param>
         /// <returns>孤儿进程信息</returns>
-        public async Task<List<ProcessInfo>> DetectOrphanProcessesAsync(int port = 3080)
+        public Task<List<ProcessInfo>> DetectOrphanProcessesAsync(int port = 3080)
         {
-            var orphanProcesses = new List<ProcessInfo>();
+            return Task.Run(() =>
+            {
+                var orphanProcesses = new List<ProcessInfo>();
 
+                try
+                {
+                    // 直接查找占用端口的node进程
+                    var nodeProcesses = Process.GetProcessesByName("node");
+                    
+                    foreach (var process in nodeProcesses)
+                    {
+                        try
+                        {
+                            // 检查进程是否占用了指定端口
+                            if (IsProcessUsingPort(process.Id, port))
+                            {
+                                // 检查是否是孤儿进程（没有主窗口）
+                                if (process.MainWindowHandle == IntPtr.Zero)
+                                {
+                                    orphanProcesses.Add(new ProcessInfo
+                                    {
+                                        ProcessId = process.Id,
+                                        ProcessName = process.ProcessName,
+                                        StartTime = process.StartTime,
+                                        MemoryUsage = process.WorkingSet64
+                                    });
+                                    _logService.Info($"检测到孤儿进程: {process.ProcessName} (PID: {process.Id})");
+                                }
+                            }
+                        }
+                        catch
+                        {
+                            // 进程可能已退出
+                        }
+                        finally
+                        {
+                            process.Dispose();
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logService.Error($"检测孤儿进程失败: {ex.Message}");
+                }
+
+                return orphanProcesses;
+            });
+        }
+
+        /// <summary>
+        /// 检查进程是否占用指定端口
+        /// </summary>
+        private bool IsProcessUsingPort(int processId, int port)
+        {
             try
             {
-                // 获取占用端口的进程
-                var portInfo = await _portService.CheckPortAsync(port);
+                var properties = System.Net.NetworkInformation.IPGlobalProperties.GetIPGlobalProperties();
+                var connections = properties.GetActiveTcpConnections();
                 
-                if (!portInfo.IsInUse || !portInfo.ProcessId.HasValue)
-                {
-                    return orphanProcesses;
-                }
-
-                var process = Process.GetProcessById(portInfo.ProcessId.Value);
-                
-                // 检查是否是孤儿进程（没有父窗口或父进程已退出）
-                if (IsOrphanProcess(process))
-                {
-                    orphanProcesses.Add(new ProcessInfo
-                    {
-                        ProcessId = process.Id,
-                        ProcessName = process.ProcessName,
-                        StartTime = process.StartTime,
-                        MemoryUsage = process.WorkingSet64
-                    });
-                }
-
-                process.Dispose();
+                return connections.Any(c => 
+                    c.LocalEndPoint.Port == port && 
+                    GetProcessIdByPort(c.LocalEndPoint.Port) == processId);
             }
-            catch (Exception ex)
+            catch
             {
-                _logService.Error($"检测孤儿进程失败: {ex.Message}");
+                return false;
             }
+        }
 
-            return orphanProcesses;
+        /// <summary>
+        /// 通过端口获取进程ID（简化版本）
+        /// </summary>
+        private int GetProcessIdByPort(int port)
+        {
+            try
+            {
+                // 使用netstat命令获取进程ID
+                var process = new System.Diagnostics.Process
+                {
+                    StartInfo = new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = "netstat",
+                        Arguments = "-ano",
+                        UseShellExecute = false,
+                        RedirectStandardOutput = true,
+                        CreateNoWindow = true
+                    }
+                };
+
+                process.Start();
+                var output = process.StandardOutput.ReadToEnd();
+                process.WaitForExit();
+
+                // 解析netstat输出
+                var lines = output.Split('\n');
+                foreach (var line in lines)
+                {
+                    if (line.Contains($":{port}") && line.Contains("LISTENING"))
+                    {
+                        var parts = line.Trim().Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                        if (parts.Length >= 5 && int.TryParse(parts[4], out int pid))
+                        {
+                            return pid;
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // 忽略错误
+            }
+            
+            return 0;
         }
 
         /// <summary>
