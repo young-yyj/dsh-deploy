@@ -195,6 +195,11 @@ namespace dsh_deploy.ViewModels
         public ICommand RunDiagnosticsCommand { get; } = null!;
         public ICommand CleanupOrphanProcessesCommand { get; } = null!;
 
+        // 代理ServiceControlViewModel的命令
+        public ICommand StartCommand => _serviceControlViewModel!.StartCommand;
+        public ICommand StopCommand => _serviceControlViewModel!.StopCommand;
+        public ICommand RestartCommand => _serviceControlViewModel!.RestartCommand;
+
         #endregion
 
         #region 命令实现
