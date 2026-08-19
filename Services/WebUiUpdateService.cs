@@ -122,7 +122,7 @@ namespace dsh_deploy.Services
                 return null;
             }
 
-            var npmCommand = ResolveCommandPath("npm");
+            var npmCommand = ProcessService.ResolveCommandPath("npm");
             if (!SecurityService.IsCommandSafe(npmCommand))
             {
                 _logService.Warn("获取最新版本失败: 不安全的命令");
@@ -167,7 +167,7 @@ namespace dsh_deploy.Services
         {
             // Windows 下 npm/pnpm 是 .cmd 垫片：.NET 以裸名启动时会破坏其内部 %~dp0 解析，
             // 必须先解析出完整路径再启动
-            var pnpmCommand = ResolveCommandPath("pnpm");
+            var pnpmCommand = ProcessService.ResolveCommandPath("pnpm");
             if (!SecurityService.IsCommandSafe(pnpmCommand))
             {
                 return false;
@@ -195,7 +195,7 @@ namespace dsh_deploy.Services
             IProgress<string>? progress,
             CancellationToken cancellationToken)
         {
-            var pnpmCommand = ResolveCommandPath("pnpm");
+            var pnpmCommand = ProcessService.ResolveCommandPath("pnpm");
             if (!SecurityService.IsCommandSafe(pnpmCommand))
             {
                 return new WebUiUpdateResult { Success = false, Message = "不安全的命令: pnpm" };
@@ -328,29 +328,6 @@ namespace dsh_deploy.Services
         private static bool IsPackageNameSafe(string packageName)
         {
             return !string.IsNullOrWhiteSpace(packageName) && PackageNamePattern.IsMatch(packageName);
-        }
-
-        /// <summary>
-        /// 在 PATH 中解析命令的完整路径（Windows 下优先 .exe/.cmd/.bat），找不到时原样返回
-        /// </summary>
-        private static string ResolveCommandPath(string command)
-        {
-            var pathVar = Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
-            string[] extensions = { ".exe", ".cmd", ".bat", "" };
-
-            foreach (var dir in pathVar.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
-            {
-                foreach (var ext in extensions)
-                {
-                    var candidate = Path.Combine(dir, command + ext);
-                    if (File.Exists(candidate))
-                    {
-                        return candidate;
-                    }
-                }
-            }
-
-            return command;
         }
 
         /// <summary>

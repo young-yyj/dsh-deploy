@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -15,6 +16,7 @@ namespace dsh_deploy.Services
     public class ProcessService
     {
         private readonly LogService _logService;
+        private Process? _dshProcess;
 
         public ProcessService(LogService logService)
         {
@@ -81,6 +83,32 @@ namespace dsh_deploy.Services
         }
 
         /// <summary>
+        /// 在 PATH 中解析命令的完整路径（Windows 下优先 .exe/.cmd/.bat），
+        /// 找不到时原样返回。用于解决 .cmd 垫片在 UseShellExecute=false 下裸名启动失败的问题。
+        /// </summary>
+        public static string ResolveCommandPath(string command)
+        {
+            var pathVar = Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
+            string[] extensions = OperatingSystem.IsWindows()
+                ? new[] { ".exe", ".cmd", ".bat", "" }
+                : new[] { "" };
+
+            foreach (var dir in pathVar.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
+            {
+                foreach (var ext in extensions)
+                {
+                    var candidate = Path.Combine(dir, command + ext);
+                    if (File.Exists(candidate))
+                    {
+                        return candidate;
+                    }
+                }
+            }
+
+            return command;
+        }
+
+        /// <summary>
         /// 启动DSH服务
         /// </summary>
         /// <param name="command">命令</param>
@@ -88,8 +116,11 @@ namespace dsh_deploy.Services
         /// <returns>是否成功</returns>
         public async Task<bool> StartDshServiceAsync(string command = "dsh", string args = "web")
         {
+            // 解析命令完整路径（解决 Windows 下 .cmd 垫片裸名启动失败）
+            var commandPath = ResolveCommandPath(command);
+
             // 安全验证
-            if (!SecurityService.IsCommandSafe(command))
+            if (!SecurityService.IsCommandSafe(commandPath))
             {
                 _logService.Error($"启动DSH服务失败: 不安全的命令 '{command}'");
                 return false;
@@ -107,7 +138,7 @@ namespace dsh_deploy.Services
                 {
                     var startInfo = new ProcessStartInfo
                     {
-                        FileName = command,
+                        FileName = commandPath,
                         Arguments = args,
                         UseShellExecute = false,
                         CreateNoWindow = true,
@@ -115,13 +146,36 @@ namespace dsh_deploy.Services
                         RedirectStandardError = true
                     };
 
-                    var process = Process.Start(startInfo);
-                    if (process != null)
+                    var process = new Process
                     {
-                        _logService.Info($"DSH服务已启动 (PID: {process.Id})");
-                        return true;
+                        StartInfo = startInfo,
+                        EnableRaisingEvents = true
+                    };
+
+                    // 异步排空输出流，防止常驻进程缓冲区填满导致阻塞
+                    process.OutputDataReceived += (_, e) =>
+                    {
+                        if (e.Data != null) _logService.Log(LogLevel.DEBUG, $"[dsh] {e.Data}");
+                    };
+                    process.ErrorDataReceived += (_, e) =>
+                    {
+                        if (e.Data != null) _logService.Log(LogLevel.WARN, $"[dsh] {e.Data}");
+                    };
+
+                    if (!process.Start())
+                    {
+                        process.Dispose();
+                        return false;
                     }
-                    return false;
+
+                    process.BeginOutputReadLine();
+                    process.BeginErrorReadLine();
+
+                    // 持有引用，防止 GC 回收导致事件订阅中断、输出流停止排空
+                    _dshProcess = process;
+
+                    _logService.Info($"DSH服务已启动 (PID: {process.Id})");
+                    return true;
                 }
                 catch (Exception ex)
                 {

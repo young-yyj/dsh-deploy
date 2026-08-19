@@ -143,6 +143,7 @@ dsh-error-reports/
 # 临时目录
 tmp/
 temp/
+.dotnet-home/
 
 # Python
 __pycache__/

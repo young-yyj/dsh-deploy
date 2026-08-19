@@ -159,8 +159,6 @@ namespace dsh_deploy.Services
                 if (!isDshProcess)
                 {
                     _logService.Warn($"端口 {port} 被其他进程占用，尝试检测孤儿进程...");
-                    
-                    // 尝试检测并清理孤儿进程
                     var orphanProcesses = await _orphanProcessService.DetectOrphanProcessesAsync(port);
                     
                     if (orphanProcesses.Count > 0)
@@ -223,6 +221,20 @@ namespace dsh_deploy.Services
                         StatusChanged?.Invoke(this, _currentStatus);
                         return false;
                     }
+                }
+                else
+                {
+                    _logService.Info($"DSH 已在运行 (PID: {portInfo.ProcessId})");
+                    _currentStatus = new ServiceStatus
+                    {
+                        State = ServiceState.Running,
+                        Port = port,
+                        ProcessId = portInfo.ProcessId,
+                        ProcessName = portInfo.ProcessName,
+                        Message = "服务运行中"
+                    };
+                    StatusChanged?.Invoke(this, _currentStatus);
+                    return true;
                 }
             }
 

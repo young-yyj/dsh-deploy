@@ -24,6 +24,12 @@ namespace dsh_deploy.ViewModels
             StopCommand = new AsyncRelayCommand(StopServiceAsync, CanStopService);
             RestartCommand = new AsyncRelayCommand(RestartServiceAsync, CanRestartService);
             ClearPortCommand = new AsyncRelayCommand(ClearPortConflictAsync);
+
+            // 服务状态变化时刷新按钮可用性（CanExecute 依赖 CurrentStatus.State）
+            _dshService.StatusChanged += (_, _) =>
+            {
+                CommandManager.InvalidateRequerySuggested();
+            };
         }
 
         #region 属性
