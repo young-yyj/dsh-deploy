@@ -11,7 +11,7 @@ namespace dsh_deploy.Services
     /// <summary>
     /// DSH服务 - 核心服务，整合端口、进程、配置管理
     /// </summary>
-    public class DshService
+    public class DshService : IDshService
     {
         private readonly LogService _logService;
         private readonly PortService _portService;

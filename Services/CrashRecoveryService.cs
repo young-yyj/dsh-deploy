@@ -16,7 +16,7 @@ namespace dsh_deploy.Services
     public class CrashRecoveryService : IDisposable
     {
         private readonly LogService _logService;
-        private readonly DshService _dshService;
+        private readonly IDshService _dshService;
         private readonly Dispatcher _dispatcher;
         private CrashRecoveryConfig _config;
 
@@ -27,7 +27,7 @@ namespace dsh_deploy.Services
         private bool _isRecovering;
         private bool _disposed;
 
-        public CrashRecoveryService(LogService logService, DshService dshService, Dispatcher dispatcher)
+        public CrashRecoveryService(LogService logService, IDshService dshService, Dispatcher dispatcher)
         {
             _logService = logService;
             _dshService = dshService;

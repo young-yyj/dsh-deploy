@@ -17,40 +17,40 @@ namespace dsh_deploy.ViewModels
     /// </summary>
     public class MainViewModel : ViewModelBase
     {
-        private readonly DshService _dshService;
+        private readonly IDshService _dshService;
         private readonly Dispatcher _dispatcher;
         private TrayService? _trayService;
-        private DashboardService? _dashboardService;
 
         private ServiceStatus _serviceStatus;
         private DashboardData _dashboardData;
         private string _statusText = "正在初始化...";
         private string _statusColor = "#9E9E9E";
         private bool _isServiceRunning;
-        private bool _isStarting;
-        private bool _isStopping;
         private string _webUrl = "http://127.0.0.1:3080";
         private int _port = 3080;
         private string _processInfo = string.Empty;
         private DateTime _lastUpdateTime;
-        private string _logFilterKeyword = string.Empty;
-        private LogLevel _logFilterLevel = LogLevel.DEBUG;
+
+        // 拆分的ViewModel
+        private ServiceControlViewModel? _serviceControlViewModel;
+        private LogViewModel? _logViewModel;
+        private DashboardViewModel? _dashboardViewModel;
 
         public MainViewModel(Dispatcher dispatcher)
         {
             _dispatcher = dispatcher;
-            _dshService = new DshService(dispatcher);
+            _dshService = ServiceLocator.Instance.Get<IDshService>();
             _serviceStatus = new ServiceStatus();
             _dashboardData = new DashboardData();
 
+            // 初始化拆分的ViewModel
+            _serviceControlViewModel = new ServiceControlViewModel(_dshService);
+            _logViewModel = new LogViewModel(_dshService.LogService);
+            _dashboardViewModel = new DashboardViewModel(ServiceLocator.Instance.Get<DashboardService>());
+
             // 初始化命令
-            StartCommand = new AsyncRelayCommand(StartServiceAsync, CanStartService);
-            StopCommand = new AsyncRelayCommand(StopServiceAsync, CanStopService);
-            RestartCommand = new AsyncRelayCommand(RestartServiceAsync, CanRestartService);
             OpenWebCommand = new RelayCommand(OpenWebInterface);
             RefreshCommand = new AsyncRelayCommand(RefreshStatusAsync);
-            ClearPortCommand = new AsyncRelayCommand(ClearPortConflictAsync);
-            ClearLogCommand = new RelayCommand(ClearLogs);
             ExitCommand = new RelayCommand(ExitApplication);
             MinimizeToTrayCommand = new RelayCommand(MinimizeToTray);
             RunDiagnosticsCommand = new AsyncRelayCommand(RunDiagnosticsAsync);
@@ -77,9 +77,7 @@ namespace dsh_deploy.ViewModels
         /// </summary>
         public void InitializeDashboard()
         {
-            _dashboardService = new DashboardService(_dshService.LogService, _dshService, _dispatcher);
-            _dashboardService.DataUpdated += OnDashboardDataUpdated;
-            _dashboardService.StartAutoRefresh(5);
+            _dashboardViewModel?.StartAutoRefresh(5);
         }
 
         #region 属性
@@ -130,24 +128,6 @@ namespace dsh_deploy.ViewModels
         }
 
         /// <summary>
-        /// 是否正在启动
-        /// </summary>
-        public bool IsStarting
-        {
-            get => _isStarting;
-            set => SetProperty(ref _isStarting, value);
-        }
-
-        /// <summary>
-        /// 是否正在停止
-        /// </summary>
-        public bool IsStopping
-        {
-            get => _isStopping;
-            set => SetProperty(ref _isStopping, value);
-        }
-
-        /// <summary>
         /// Web URL
         /// </summary>
         public string WebUrl
@@ -184,57 +164,31 @@ namespace dsh_deploy.ViewModels
         }
 
         /// <summary>
-        /// 日志集合
-        /// </summary>
-        public ObservableCollection<LogEntry> Logs => _dshService.LogService.Logs;
-
-        /// <summary>
-        /// 过滤后的日志集合
-        /// </summary>
-        public ObservableCollection<LogEntry> FilteredLogs => _dshService.LogService.FilteredLogs;
-
-        /// <summary>
-        /// 日志过滤关键词
-        /// </summary>
-        public string LogFilterKeyword
-        {
-            get => _logFilterKeyword;
-            set
-            {
-                SetProperty(ref _logFilterKeyword, value);
-                ApplyLogFilter();
-            }
-        }
-
-        /// <summary>
-        /// 日志过滤级别
-        /// </summary>
-        public LogLevel LogFilterLevel
-        {
-            get => _logFilterLevel;
-            set
-            {
-                SetProperty(ref _logFilterLevel, value);
-                ApplyLogFilter();
-            }
-        }
-
-        /// <summary>
         /// DSH服务
         /// </summary>
-        public DshService DshService => _dshService;
+        public IDshService DshService => _dshService;
+
+        /// <summary>
+        /// 服务控制ViewModel
+        /// </summary>
+        public ServiceControlViewModel ServiceControl => _serviceControlViewModel!;
+
+        /// <summary>
+        /// 日志ViewModel
+        /// </summary>
+        public LogViewModel Log => _logViewModel!;
+
+        /// <summary>
+        /// 仪表盘ViewModel
+        /// </summary>
+        public DashboardViewModel Dashboard => _dashboardViewModel!;
 
         #endregion
 
         #region 命令
 
-        public ICommand StartCommand { get; }
-        public ICommand StopCommand { get; }
-        public ICommand RestartCommand { get; }
         public ICommand OpenWebCommand { get; }
         public ICommand RefreshCommand { get; }
-        public ICommand ClearPortCommand { get; }
-        public ICommand ClearLogCommand { get; }
         public ICommand ExitCommand { get; }
         public ICommand MinimizeToTrayCommand { get; }
         public ICommand RunDiagnosticsCommand { get; }
@@ -243,85 +197,25 @@ namespace dsh_deploy.ViewModels
 
         #region 命令实现
 
-        private async Task StartServiceAsync()
-        {
-            IsStarting = true;
-            try
-            {
-                await _dshService.StartServiceAsync();
-            }
-            finally
-            {
-                IsStarting = false;
-            }
-        }
-
-        private bool CanStartService()
-        {
-            return !IsStarting && !IsStopping && !IsServiceRunning;
-        }
-
-        private async Task StopServiceAsync()
-        {
-            IsStopping = true;
-            try
-            {
-                await _dshService.StopServiceAsync();
-            }
-            finally
-            {
-                IsStopping = false;
-            }
-        }
-
-        private bool CanStopService()
-        {
-            return !IsStarting && !IsStopping && IsServiceRunning;
-        }
-
-        private async Task RestartServiceAsync()
-        {
-            IsStarting = true;
-            IsStopping = true;
-            try
-            {
-                await _dshService.RestartServiceAsync();
-            }
-            finally
-            {
-                IsStarting = false;
-                IsStopping = false;
-            }
-        }
-
-        private bool CanRestartService()
-        {
-            return !IsStarting && !IsStopping;
-        }
-
         private void OpenWebInterface()
         {
-            _dshService.OpenWebInterface();
+            try
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = _webUrl,
+                    UseShellExecute = true
+                });
+            }
+            catch (Exception ex)
+            {
+                _dshService.LogService.Error($"打开Web界面失败: {ex.Message}");
+            }
         }
 
         private async Task RefreshStatusAsync()
         {
             await _dshService.RefreshStatusAsync(forceRefresh: true);
-        }
-
-        private async Task ClearPortConflictAsync()
-        {
-            await _dshService.ClearPortConflictAsync();
-        }
-
-        private void ClearLogs()
-        {
-            _dshService.LogService.Clear();
-        }
-
-        private void ApplyLogFilter()
-        {
-            _dshService.LogService.SetFilter(_logFilterLevel, _logFilterKeyword);
         }
 
         private void ExitApplication()
@@ -435,14 +329,6 @@ namespace dsh_deploy.ViewModels
 
             _dshService.LogService.Info(diagnostics.ToString());
             _dshService.LogService.Info("系统诊断完成，详细报告已输出到日志");
-        }
-
-        private void OnDashboardDataUpdated(object? sender, DashboardData data)
-        {
-            _dispatcher.Invoke(() =>
-            {
-                DashboardData = data;
-            });
         }
 
         private void OnStatusChanged(object? sender, ServiceStatus status)
