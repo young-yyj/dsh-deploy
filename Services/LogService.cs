@@ -25,6 +25,8 @@ namespace dsh_deploy.Services
         private readonly object _lock = new();
         private LogFilter _currentFilter;
         private const int MaxLogEntries = 1000;
+        private const long MaxLogFileSize = 10 * 1024 * 1024; // 10MB
+        private const int MaxLogFiles = 5;
 
         public LogService(Dispatcher dispatcher, LogLevel minLogLevel = LogLevel.INFO)
         {
@@ -258,12 +260,59 @@ namespace dsh_deploy.Services
         {
             try
             {
+                // 检查是否需要轮转
+                CheckAndRotateLogFile();
+                
                 var logLine = entry.FullDisplay + Environment.NewLine;
                 File.AppendAllText(_logFilePath, logLine, Encoding.UTF8);
             }
             catch
             {
                 // 日志写入失败，静默继续
+            }
+        }
+
+        /// <summary>
+        /// 检查并轮转日志文件
+        /// </summary>
+        private void CheckAndRotateLogFile()
+        {
+            try
+            {
+                if (!File.Exists(_logFilePath))
+                    return;
+
+                var fileInfo = new FileInfo(_logFilePath);
+                if (fileInfo.Length < MaxLogFileSize)
+                    return;
+
+                // 轮转日志文件
+                for (int i = MaxLogFiles - 1; i > 0; i--)
+                {
+                    var oldFile = $"{_logFilePath}.{i}";
+                    var newFile = $"{_logFilePath}.{i + 1}";
+                    
+                    if (File.Exists(oldFile))
+                    {
+                        if (i == MaxLogFiles - 1)
+                        {
+                            File.Delete(oldFile);
+                        }
+                        else
+                        {
+                            File.Move(oldFile, newFile);
+                        }
+                    }
+                }
+
+                // 将当前日志文件重命名为 .1
+                File.Move(_logFilePath, $"{_logFilePath}.1");
+                
+                System.Diagnostics.Debug.WriteLine("日志文件已轮转");
+            }
+            catch
+            {
+                // 轮转失败，静默继续
             }
         }
     }

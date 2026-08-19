@@ -15,6 +15,10 @@ namespace dsh_deploy.Services
     public class PortService
     {
         private readonly LogService _logService;
+        private readonly Dictionary<int, PortInfo> _portCache = new();
+        private DateTime _lastCacheUpdate = DateTime.MinValue;
+        private readonly TimeSpan _cacheTimeout = TimeSpan.FromSeconds(5);
+        private readonly object _cacheLock = new();
 
         public PortService(LogService logService)
         {
@@ -26,9 +30,23 @@ namespace dsh_deploy.Services
         /// </summary>
         /// <param name="port">端口号</param>
         /// <param name="quickCheck">是否快速检查（不获取进程信息）</param>
+        /// <param name="useCache">是否使用缓存</param>
         /// <returns>端口信息</returns>
-        public async Task<PortInfo> CheckPortAsync(int port, bool quickCheck = false)
+        public async Task<PortInfo> CheckPortAsync(int port, bool quickCheck = false, bool useCache = true)
         {
+            // 检查缓存
+            if (useCache && quickCheck)
+            {
+                lock (_cacheLock)
+                {
+                    if (_portCache.TryGetValue(port, out var cached) &&
+                        DateTime.Now - _lastCacheUpdate < _cacheTimeout)
+                    {
+                        return cached;
+                    }
+                }
+            }
+
             return await Task.Run(() =>
             {
                 try
@@ -38,37 +56,50 @@ namespace dsh_deploy.Services
                     
                     var portConnection = connections.FirstOrDefault(c => c.LocalEndPoint.Port == port);
                     
+                    PortInfo portInfo;
                     if (portConnection == null)
                     {
-                        return new PortInfo
+                        portInfo = new PortInfo
                         {
                             Port = port,
                             IsInUse = false
                         };
                     }
-
-                    var portInfo = new PortInfo
+                    else
                     {
-                        Port = port,
-                        IsInUse = true,
-                        ConnectionState = portConnection.State.ToString(),
-                        LocalAddress = portConnection.LocalEndPoint.ToString(),
-                        RemoteAddress = portConnection.RemoteEndPoint?.ToString() ?? "N/A"
-                    };
-
-                    if (!quickCheck)
-                    {
-                        // 获取进程信息
-                        try
+                        portInfo = new PortInfo
                         {
-                            // 注意：在.NET中获取进程ID需要使用其他方法
-                            // 这里简化处理，实际项目中可能需要P/Invoke
-                            portInfo.ProcessId = null;
-                            portInfo.ProcessName = "Unknown";
+                            Port = port,
+                            IsInUse = true,
+                            ConnectionState = portConnection.State.ToString(),
+                            LocalAddress = portConnection.LocalEndPoint.ToString(),
+                            RemoteAddress = portConnection.RemoteEndPoint?.ToString() ?? "N/A"
+                        };
+
+                        if (!quickCheck)
+                        {
+                            // 获取进程信息
+                            try
+                            {
+                                // 注意：在.NET中获取进程ID需要使用其他方法
+                                // 这里简化处理，实际项目中可能需要P/Invoke
+                                portInfo.ProcessId = null;
+                                portInfo.ProcessName = "Unknown";
+                            }
+                            catch (Exception ex)
+                            {
+                                _logService.Log(LogLevel.WARN, $"获取进程信息失败: {ex.Message}");
+                            }
                         }
-                        catch (Exception ex)
+                    }
+
+                    // 更新缓存
+                    if (useCache)
+                    {
+                        lock (_cacheLock)
                         {
-                            _logService.Log(LogLevel.WARN, $"获取进程信息失败: {ex.Message}");
+                            _portCache[port] = portInfo;
+                            _lastCacheUpdate = DateTime.Now;
                         }
                     }
 
@@ -147,6 +178,18 @@ namespace dsh_deploy.Services
                 }
                 return ports;
             });
+        }
+
+        /// <summary>
+        /// 清除端口缓存
+        /// </summary>
+        public void ClearCache()
+        {
+            lock (_cacheLock)
+            {
+                _portCache.Clear();
+                _lastCacheUpdate = DateTime.MinValue;
+            }
         }
     }
 }

@@ -17,6 +17,10 @@ namespace dsh_deploy.Services
         private DashboardData _dashboardData;
         private DispatcherTimer? _refreshTimer;
         private bool _disposed;
+        private int _currentIntervalSeconds = 5;
+        private readonly int _normalIntervalSeconds = 10;
+        private readonly int _activeIntervalSeconds = 5;
+        private readonly int _idleIntervalSeconds = 30;
 
         public event EventHandler<DashboardData>? DataUpdated;
 
@@ -39,19 +43,47 @@ namespace dsh_deploy.Services
         /// <summary>
         /// 启动自动刷新
         /// </summary>
-        public void StartAutoRefresh(int intervalSeconds = 5)
+        public void StartAutoRefresh(int intervalSeconds = 0)
         {
+            // 使用智能间隔
+            _currentIntervalSeconds = intervalSeconds > 0 ? intervalSeconds : _normalIntervalSeconds;
+            
             if (_refreshTimer != null)
             {
                 _refreshTimer.Stop();
             }
             _refreshTimer = new DispatcherTimer
             {
-                Interval = TimeSpan.FromSeconds(intervalSeconds)
+                Interval = TimeSpan.FromSeconds(_currentIntervalSeconds)
             };
             _refreshTimer.Tick += async (s, e) => await RefreshAsync();
             _refreshTimer.Start();
-            _logService.Info($"仪表盘自动刷新已启动，间隔：{intervalSeconds}秒");
+            _logService.Info($"仪表盘自动刷新已启动，间隔：{_currentIntervalSeconds}秒");
+        }
+
+        /// <summary>
+        /// 调整刷新频率
+        /// </summary>
+        private void AdjustRefreshInterval()
+        {
+            var state = _dshService.CurrentStatus.State;
+            var newInterval = state switch
+            {
+                ServiceState.Running => _activeIntervalSeconds,
+                ServiceState.Starting => _activeIntervalSeconds,
+                ServiceState.Error => _activeIntervalSeconds,
+                _ => _idleIntervalSeconds
+            };
+
+            if (newInterval != _currentIntervalSeconds)
+            {
+                _currentIntervalSeconds = newInterval;
+                if (_refreshTimer != null)
+                {
+                    _refreshTimer.Interval = TimeSpan.FromSeconds(_currentIntervalSeconds);
+                    _logService.Debug($"仪表盘刷新间隔调整为：{_currentIntervalSeconds}秒");
+                }
+            }
         }
 
         /// <summary>
@@ -189,6 +221,9 @@ namespace dsh_deploy.Services
         /// </summary>
         private void OnStatusChanged(object? sender, ServiceStatus status)
         {
+            // 调整刷新频率
+            AdjustRefreshInterval();
+            
             // 使用Task.Run避免async void
             _ = Task.Run(async () =>
             {
