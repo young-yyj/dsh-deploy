@@ -253,28 +253,47 @@ namespace dsh_deploy.Services
 
                 if (!portInfo.IsInUse)
                 {
-                    // 端口未占用，检查是否有进程在运行
+                    // 端口未占用，检查是否有DSH进程在运行（可能正在启动或使用其他端口）
                     var dshProcesses = await _processService.GetDshProcessesAsync();
                     status.State = dshProcesses.Count > 0 ? ServiceState.Starting : ServiceState.Stopped;
                     status.Message = dshProcesses.Count > 0 ? "服务正在启动..." : "服务已停止";
+                    
+                    if (dshProcesses.Count > 0)
+                    {
+                        status.ProcessId = dshProcesses[0].ProcessId;
+                        status.ProcessName = dshProcesses[0].ProcessName;
+                    }
                 }
                 else
                 {
                     // 端口被占用，获取详细信息
                     var portDetails = await _portService.CheckPortAsync(port);
+                    
+                    // 获取DSH进程列表
                     var dshProcesses = await _processService.GetDshProcessesAsync();
                     
+                    // 检查占用端口的进程是否是DSH进程
                     var isDshProcess = dshProcesses.Any(p => p.ProcessId == portDetails.ProcessId);
                     
                     if (isDshProcess)
                     {
+                        // 端口被DSH进程占用，服务正常运行
                         status.State = ServiceState.Running;
                         status.ProcessId = portDetails.ProcessId;
                         status.ProcessName = portDetails.ProcessName;
                         status.Message = "服务运行中";
                     }
+                    else if (dshProcesses.Count > 0)
+                    {
+                        // 有DSH进程但端口被其他进程占用
+                        status.State = ServiceState.PortConflict;
+                        status.ProcessId = portDetails.ProcessId;
+                        status.ProcessName = portDetails.ProcessName;
+                        status.Message = $"端口被 {portDetails.ProcessName} 占用，但检测到DSH进程";
+                    }
                     else
                     {
+                        // 端口被其他进程占用，没有DSH进程
                         status.State = ServiceState.PortConflict;
                         status.ProcessId = portDetails.ProcessId;
                         status.ProcessName = portDetails.ProcessName;

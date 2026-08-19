@@ -39,16 +39,16 @@ namespace dsh_deploy.Services
                     {
                         try
                         {
-                            var commandLine = GetProcessCommandLine(process.Id);
+                            // 检查是否是DSH进程（通过检查端口占用）
+                            bool isDshProcess = IsDshProcessByPort(process.Id);
                             
-                            // 检查是否是DSH进程
-                            if (IsDshProcess(commandLine))
+                            if (isDshProcess)
                             {
                                 processes.Add(new ProcessInfo
                                 {
                                     ProcessId = process.Id,
                                     ProcessName = process.ProcessName,
-                                    CommandLine = commandLine,
+                                    CommandLine = "dsh web",
                                     StartTime = process.StartTime,
                                     MemoryUsage = process.WorkingSet64,
                                     IsDshProcess = true
@@ -71,6 +71,40 @@ namespace dsh_deploy.Services
                 }
                 return processes;
             });
+        }
+
+        /// <summary>
+        /// 通过端口占用判断是否是DSH进程
+        /// </summary>
+        private bool IsDshProcessByPort(int processId)
+        {
+            try
+            {
+                // 检查进程是否占用了DSH常用端口（3080）
+                var portService = new PortService(_logService);
+                var portInfo = portService.CheckPortAsync(3080, quickCheck: true).Result;
+                
+                if (portInfo.IsInUse && portInfo.ProcessId == processId)
+                {
+                    return true;
+                }
+                
+                // 检查进程是否占用了其他DSH端口（3081-3090）
+                for (int port = 3081; port <= 3090; port++)
+                {
+                    var info = portService.CheckPortAsync(port, quickCheck: true).Result;
+                    if (info.IsInUse && info.ProcessId == processId)
+                    {
+                        return true;
+                    }
+                }
+                
+                return false;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         /// <summary>
