@@ -19,7 +19,10 @@ namespace dsh_deploy.Services
         private UpdateConfig _config;
         private VersionInfo _versionInfo;
         private Timer? _checkTimer;
-        private HttpClient? _httpClient;
+        private static readonly HttpClient _httpClient = new()
+        {
+            Timeout = TimeSpan.FromSeconds(30)
+        };
         private bool _disposed;
 
         public event EventHandler<VersionInfo>? UpdateAvailable;
@@ -175,8 +178,6 @@ namespace dsh_deploy.Services
                     _logService.Warn($"获取最新版本失败: 不安全的URL '{_config.UpdateUrl}'");
                     return "unknown";
                 }
-
-                _httpClient ??= new HttpClient();
                 
                 var response = await _httpClient.GetStringAsync(_config.UpdateUrl);
                 using var doc = JsonDocument.Parse(response);
@@ -273,7 +274,7 @@ namespace dsh_deploy.Services
                 if (disposing)
                 {
                     _checkTimer?.Dispose();
-                    _httpClient?.Dispose();
+                    // 注意：不释放静态HttpClient，避免影响其他使用者
                 }
                 _disposed = true;
             }

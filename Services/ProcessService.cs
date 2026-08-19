@@ -253,9 +253,10 @@ namespace dsh_deploy.Services
         /// </summary>
         private string GetProcessCommandLine(int processId)
         {
+            Process? process = null;
             try
             {
-                var process = Process.GetProcessById(processId);
+                process = Process.GetProcessById(processId);
                 // 注意：在.NET 8中，Process类不直接提供CommandLine属性
                 // 这里返回进程名称作为替代
                 return process.ProcessName;
@@ -263,6 +264,10 @@ namespace dsh_deploy.Services
             catch
             {
                 return string.Empty;
+            }
+            finally
+            {
+                process?.Dispose();
             }
         }
 

@@ -18,6 +18,7 @@ namespace dsh_deploy.Services
         private readonly ProcessService _processService;
         private readonly ConfigService _configService;
         private readonly Dispatcher _dispatcher;
+        private readonly object _statusLock = new();
         private CrashRecoveryService? _crashRecoveryService;
         private UpdateService? _updateService;
         private HealthCheckService? _healthCheckService;
@@ -110,19 +111,25 @@ namespace dsh_deploy.Services
         /// </summary>
         public async Task<ServiceStatus> RefreshStatusAsync(bool forceRefresh = false)
         {
-            // 检查缓存
-            if (!forceRefresh && 
-                _lastStatusCheck != DateTime.MinValue &&
-                (DateTime.Now - _lastStatusCheck).TotalSeconds < StatusCacheSeconds)
+            lock (_statusLock)
             {
-                return _currentStatus;
+                // 检查缓存
+                if (!forceRefresh && 
+                    _lastStatusCheck != DateTime.MinValue &&
+                    (DateTime.Now - _lastStatusCheck).TotalSeconds < StatusCacheSeconds)
+                {
+                    return _currentStatus;
+                }
             }
 
             var status = await GetStatusInternalAsync();
             
-            // 更新缓存
-            _currentStatus = status;
-            _lastStatusCheck = DateTime.Now;
+            lock (_statusLock)
+            {
+                // 更新缓存
+                _currentStatus = status;
+                _lastStatusCheck = DateTime.Now;
+            }
 
             // 触发状态变化事件
             StatusChanged?.Invoke(this, status);

@@ -18,7 +18,10 @@ namespace dsh_deploy.Services
         private HealthCheckConfig _config;
         private HealthStatus _healthStatus;
         private Timer? _checkTimer;
-        private HttpClient? _httpClient;
+        private static readonly HttpClient _httpClient = new()
+        {
+            Timeout = TimeSpan.FromSeconds(10)
+        };
         private bool _disposed;
 
         public event EventHandler<HealthStatus>? HealthStatusChanged;
@@ -93,9 +96,6 @@ namespace dsh_deploy.Services
                 _healthStatus.State = HealthState.Checking;
                 _healthStatus.LastCheckTime = DateTime.Now;
 
-                _httpClient ??= new HttpClient();
-                _httpClient.Timeout = TimeSpan.FromMilliseconds(_config.Timeout);
-
                 var response = await _httpClient.GetAsync(_config.HealthUrl);
                 stopwatch.Stop();
 
@@ -138,7 +138,7 @@ namespace dsh_deploy.Services
         /// <summary>
         /// 处理失败
         /// </summary>
-        private async void HandleFailure(string error)
+        private void HandleFailure(string error)
         {
             _healthStatus.State = HealthState.Unhealthy;
             _healthStatus.ConsecutiveFailures++;
@@ -153,11 +153,21 @@ namespace dsh_deploy.Services
                 
                 ServiceUnhealthy?.Invoke(this, EventArgs.Empty);
 
-                // 自动重启
+                // 自动重启（使用Task.Run避免阻塞）
                 if (_config.AutoRestart)
                 {
                     _logService.Info("正在自动重启服务...");
-                    await _dshService.RestartServiceAsync();
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await _dshService.RestartServiceAsync();
+                        }
+                        catch (Exception ex)
+                        {
+                            _logService.Error($"自动重启失败: {ex.Message}");
+                        }
+                    });
                 }
             }
         }
@@ -190,7 +200,7 @@ namespace dsh_deploy.Services
                 if (disposing)
                 {
                     _checkTimer?.Dispose();
-                    _httpClient?.Dispose();
+                    // 注意：不释放静态HttpClient，避免影响其他使用者
                 }
                 _disposed = true;
             }

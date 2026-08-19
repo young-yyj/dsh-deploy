@@ -52,23 +52,34 @@ namespace dsh_deploy.Services
         /// <summary>
         /// 服务状态变化事件处理
         /// </summary>
-        private async void OnStatusChanged(object? sender, ServiceStatus status)
+        private void OnStatusChanged(object? sender, ServiceStatus status)
         {
             if (!_config.Enabled) return;
 
-            if (status.State == ServiceState.Running)
+            // 使用Task.Run避免async void
+            _ = Task.Run(async () =>
             {
-                // 服务正常运行，记录成功时间
-                _lastSuccessTime = DateTime.Now;
-                
-                // 启动重置定时器
-                StartResetTimer();
-            }
-            else if (status.State == ServiceState.Error || status.State == ServiceState.Stopped)
-            {
-                // 检测到服务异常，触发恢复
-                await HandleServiceFailureAsync(status);
-            }
+                try
+                {
+                    if (status.State == ServiceState.Running)
+                    {
+                        // 服务正常运行，记录成功时间
+                        _lastSuccessTime = DateTime.Now;
+                        
+                        // 启动重置定时器
+                        StartResetTimer();
+                    }
+                    else if (status.State == ServiceState.Error || status.State == ServiceState.Stopped)
+                    {
+                        // 检测到服务异常，触发恢复
+                        await HandleServiceFailureAsync(status);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logService.Error($"崩溃恢复事件处理失败: {ex.Message}");
+                }
+            });
         }
 
         /// <summary>

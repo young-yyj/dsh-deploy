@@ -159,11 +159,12 @@ namespace dsh_deploy.Services
         /// </summary>
         private void UpdateCpuUsage()
         {
+            Process? process = null;
             try
             {
                 if (_dashboardData.ProcessInfo != null)
                 {
-                    var process = Process.GetProcessById(_dashboardData.ProcessInfo.ProcessId);
+                    process = Process.GetProcessById(_dashboardData.ProcessInfo.ProcessId);
                     _dashboardData.CpuUsage = process.TotalProcessorTime.TotalMilliseconds / 
                         Environment.ProcessorCount / 
                         process.StartTime.Subtract(DateTime.Now).TotalMilliseconds * 100;
@@ -177,14 +178,29 @@ namespace dsh_deploy.Services
             {
                 _dashboardData.CpuUsage = 0;
             }
+            finally
+            {
+                process?.Dispose();
+            }
         }
 
         /// <summary>
         /// 服务状态变化事件处理
         /// </summary>
-        private async void OnStatusChanged(object? sender, ServiceStatus status)
+        private void OnStatusChanged(object? sender, ServiceStatus status)
         {
-            await RefreshAsync();
+            // 使用Task.Run避免async void
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await RefreshAsync();
+                }
+                catch (Exception ex)
+                {
+                    _logService.Error($"仪表盘刷新失败: {ex.Message}");
+                }
+            });
         }
 
         /// <summary>
