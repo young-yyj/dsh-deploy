@@ -1,0 +1,161 @@
+# ==================== WPF/.NET 项目规则 ====================
+
+# 构建输出目录
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+
+# Visual Studio 文件
+.vs/
+*.user
+*.userosscache
+*.sln.docstates
+*.suo
+*.vsidx
+*.cache
+*.dtbcache.v2
+*.futdcache.v2
+
+# Visual Studio 评估文件
+ProjectEvaluation/
+
+# ReSharper
+_ReSharper*/
+*.[Rr]e[Ss]harper
+*.DotSettings.user
+
+# JetBrains Rider
+.idea/
+*.sln.iml
+
+# NuGet 包
+*.nupkg
+*.snupkg
+**/[Pp]ackages/*
+!**/[Pp]ackages/build/
+*.nuget.props
+*.nuget.targets
+
+# .NET Core
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# 编译产物
+*.dll
+*.exe
+*.pdb
+*.ilk
+*.meta
+*.obj
+*.iobj
+*.pch
+*.ipdb
+*.pgc
+*.pgd
+*.rsp
+*.sbr
+*.tlb
+*.tli
+*.tlh
+*.tmp
+*.tmp_proj
+*_wpftmp.csproj
+*.log
+*.vspscc
+*.vssscc
+.builds
+*.pidb
+*.svclog
+*.scc
+
+# WPF 自动生成文件
+*.g.cs
+*.g.xaml
+*.baml
+*.g.i.cs
+
+# ==================== 测试和报告文件 ====================
+
+# 测试报告和代码审查报告（不提交）
+TEST-REPORT.md
+CODE-REVIEW-WPF.md
+
+# 测试文件
+tests/
+
+# ==================== 环境和工具规则 ====================
+
+# 日志文件
+*.log
+logs/
+
+# 临时文件
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+*~
+
+# 操作系统文件
+Thumbs.db
+Desktop.ini
+.DS_Store
+ehthumbs.db
+ehthumbs_vista.db
+
+# 回收站
+$RECYCLE.BIN/
+
+# Windows 快捷方式
+*.lnk
+
+# 环境变量
+.env
+.env.local
+.env.*.local
+
+# ==================== 其他规则 ====================
+
+# Node.js
+node_modules/
+
+# PM2
+.pm2/
+
+# 错误报告
+dsh-error-reports/
+
+# 密钥和证书
+*.pem
+*.key
+*.crt
+*.pfx
+*.p12
+
+# 临时目录
+tmp/
+temp/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# 调试文件
+*.stackdump
+core.*
+vgcore.*
+
+# 性能分析文件
+*.dyzgmon
+*.etl
+*.etw
+*.perf
