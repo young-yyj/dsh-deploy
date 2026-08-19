@@ -56,6 +56,9 @@ namespace dsh_deploy.Services
             Register(dshService);
 
             // 注册附加服务
+            var orphanProcessService = new OrphanProcessService(logService, portService);
+            Register(orphanProcessService);
+
             var crashRecoveryService = new CrashRecoveryService(logService, dshService, _dispatcher);
             Register(crashRecoveryService);
 

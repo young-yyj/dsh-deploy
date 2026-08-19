@@ -240,7 +240,7 @@
                         Style="{StaticResource PrimaryButton}"
                         Width="100"/>
                 <Button Content="清理端口" 
-                        Command="{Binding ClearPortCommand}"
+                        Command="{Binding CleanupOrphanProcessesCommand}"
                         Style="{StaticResource PrimaryButton}"
                         Width="100"/>
                 <Button Content="系统诊断" 

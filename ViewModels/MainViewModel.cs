@@ -187,11 +187,12 @@ namespace dsh_deploy.ViewModels
 
         #region 命令
 
-        public ICommand OpenWebCommand { get; }
-        public ICommand RefreshCommand { get; }
-        public ICommand ExitCommand { get; }
-        public ICommand MinimizeToTrayCommand { get; }
-        public ICommand RunDiagnosticsCommand { get; }
+        public ICommand OpenWebCommand { get; } = null!;
+        public ICommand RefreshCommand { get; } = null!;
+        public ICommand ExitCommand { get; } = null!;
+        public ICommand MinimizeToTrayCommand { get; } = null!;
+        public ICommand RunDiagnosticsCommand { get; } = null!;
+        public ICommand CleanupOrphanProcessesCommand { get; } = null!;
 
         #endregion
 
@@ -227,6 +228,31 @@ namespace dsh_deploy.ViewModels
         private void MinimizeToTray()
         {
             _trayService?.HideMainWindow();
+        }
+
+        private async Task CleanupOrphanProcessesAsync()
+        {
+            try
+            {
+                _dshService.LogService.Info("正在清理孤儿进程...");
+                
+                var orphanProcessService = ServiceLocator.Instance.Get<OrphanProcessService>();
+                var cleanedCount = await orphanProcessService.CleanupAllOrphanProcessesAsync(Port);
+                
+                if (cleanedCount > 0)
+                {
+                    _dshService.LogService.Info($"已清理 {cleanedCount} 个孤儿进程");
+                    await RefreshStatusAsync();
+                }
+                else
+                {
+                    _dshService.LogService.Info("未发现孤儿进程");
+                }
+            }
+            catch (Exception ex)
+            {
+                _dshService.LogService.Error($"清理孤儿进程失败: {ex.Message}");
+            }
         }
 
         #endregion

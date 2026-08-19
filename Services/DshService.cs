@@ -19,6 +19,7 @@ namespace dsh_deploy.Services
         private readonly ConfigService _configService;
         private readonly Dispatcher _dispatcher;
         private readonly object _statusLock = new();
+        private readonly OrphanProcessService _orphanProcessService;
         private CrashRecoveryService? _crashRecoveryService;
         private UpdateService? _updateService;
         private HealthCheckService? _healthCheckService;
@@ -35,6 +36,7 @@ namespace dsh_deploy.Services
             _portService = new PortService(_logService);
             _processService = new ProcessService(_logService);
             _configService = new ConfigService(_logService);
+            _orphanProcessService = new OrphanProcessService(_logService, _portService);
             _currentStatus = new ServiceStatus();
 
             InitializeStatusTimer();
@@ -156,17 +158,71 @@ namespace dsh_deploy.Services
 
                 if (!isDshProcess)
                 {
-                    _logService.Warn($"端口 {port} 被其他进程占用");
-                    _currentStatus = new ServiceStatus
+                    _logService.Warn($"端口 {port} 被其他进程占用，尝试检测孤儿进程...");
+                    
+                    // 尝试检测并清理孤儿进程
+                    var orphanProcesses = await _orphanProcessService.DetectOrphanProcessesAsync(port);
+                    
+                    if (orphanProcesses.Count > 0)
                     {
-                        State = ServiceState.PortConflict,
-                        Port = port,
-                        ProcessId = portInfo.ProcessId,
-                        ProcessName = portInfo.ProcessName,
-                        Message = $"端口被 {portInfo.ProcessName} 占用"
-                    };
-                    StatusChanged?.Invoke(this, _currentStatus);
-                    return false;
+                        _logService.Info($"检测到 {orphanProcesses.Count} 个孤儿进程，正在清理...");
+                        
+                        var cleanedCount = await _orphanProcessService.CleanupAllOrphanProcessesAsync(port);
+                        
+                        if (cleanedCount > 0)
+                        {
+                            _logService.Info($"已清理 {cleanedCount} 个孤儿进程，重新尝试启动...");
+                            
+                            // 等待端口释放
+                            await Task.Delay(1000);
+                            
+                            // 重新检查端口
+                            portInfo = await _portService.CheckPortAsync(port);
+                            
+                            if (portInfo.IsInUse)
+                            {
+                                _logService.Error($"清理孤儿进程后端口 {port} 仍被占用");
+                                _currentStatus = new ServiceStatus
+                                {
+                                    State = ServiceState.PortConflict,
+                                    Port = port,
+                                    ProcessId = portInfo.ProcessId,
+                                    ProcessName = portInfo.ProcessName,
+                                    Message = $"端口被 {portInfo.ProcessName} 占用（孤儿进程清理失败）"
+                                };
+                                StatusChanged?.Invoke(this, _currentStatus);
+                                return false;
+                            }
+                        }
+                        else
+                        {
+                            _logService.Error("清理孤儿进程失败");
+                            _currentStatus = new ServiceStatus
+                            {
+                                State = ServiceState.PortConflict,
+                                Port = port,
+                                ProcessId = portInfo.ProcessId,
+                                ProcessName = portInfo.ProcessName,
+                                Message = $"端口被 {portInfo.ProcessName} 占用（孤儿进程清理失败）"
+                            };
+                            StatusChanged?.Invoke(this, _currentStatus);
+                            return false;
+                        }
+                    }
+                    else
+                    {
+                        _logService.Warn($"端口 {port} 被非DSH进程占用，且未检测到孤儿进程");
+                        _currentStatus = new ServiceStatus
+                        {
+                            State = ServiceState.PortConflict,
+                            Port = port,
+                            ProcessId = portInfo.ProcessId,
+                            ProcessName = portInfo.ProcessName,
+                            Message = $"端口被 {portInfo.ProcessName} 占用"
+                        };
+                        StatusChanged?.Invoke(this, _currentStatus);
+                        return false;
+                    }
                 }
             }
 
