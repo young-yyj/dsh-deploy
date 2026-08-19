@@ -54,6 +54,7 @@ namespace dsh_deploy.ViewModels
             ExitCommand = new RelayCommand(ExitApplication);
             MinimizeToTrayCommand = new RelayCommand(MinimizeToTray);
             RunDiagnosticsCommand = new AsyncRelayCommand(RunDiagnosticsAsync);
+            CleanupOrphanProcessesCommand = new AsyncRelayCommand(CleanupOrphanProcessesAsync);
 
             // 订阅状态变化
             _dshService.StatusChanged += OnStatusChanged;
