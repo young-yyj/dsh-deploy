@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using System.Windows.Media;
 
 namespace dsh_deploy.Models
 {
@@ -63,13 +62,13 @@ namespace dsh_deploy.Models
         /// <summary>
         /// 级别颜色
         /// </summary>
-        public SolidColorBrush LevelColor => Level switch
+        public System.Windows.Media.SolidColorBrush LevelColor => Level switch
         {
-            LogLevel.DEBUG => Brushes.Gray,
-            LogLevel.INFO => Brushes.Black,
-            LogLevel.WARN => Brushes.Orange,
-            LogLevel.ERROR => Brushes.Red,
-            _ => Brushes.Black
+            LogLevel.DEBUG => System.Windows.Media.Brushes.Gray,
+            LogLevel.INFO => System.Windows.Media.Brushes.Black,
+            LogLevel.WARN => System.Windows.Media.Brushes.Orange,
+            LogLevel.ERROR => System.Windows.Media.Brushes.Red,
+            _ => System.Windows.Media.Brushes.Black
         };
 
         /// <summary>

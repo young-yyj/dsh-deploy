@@ -26,13 +26,23 @@ namespace dsh_deploy
             _viewModel = new MainViewModel(Dispatcher);
             DataContext = _viewModel;
             
+            // 初始化托盘服务
+            _viewModel.InitializeTray(this);
+            
             // 窗口关闭时清理
             Closing += MainWindow_Closing;
+            Closed += MainWindow_Closed;
         }
 
         private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
         {
             // 停止状态定时器
+            _viewModel.DshService.StopStatusTimer();
+        }
+
+        private void MainWindow_Closed(object? sender, EventArgs e)
+        {
+            // 清理托盘服务
             _viewModel.DshService.StopStatusTimer();
         }
     }

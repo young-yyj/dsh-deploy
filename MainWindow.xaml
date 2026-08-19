@@ -181,6 +181,10 @@
                         Command="{Binding RestartCommand}"
                         Style="{StaticResource WarningButton}"
                         Width="100"/>
+                <Button Content="最小化到托盘" 
+                        Command="{Binding MinimizeToTrayCommand}"
+                        Style="{StaticResource PrimaryButton}"
+                        Width="120"/>
             </StackPanel>
             
             <!-- 次要操作按钮 -->

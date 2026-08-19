@@ -19,6 +19,7 @@ namespace dsh_deploy.ViewModels
     {
         private readonly DshService _dshService;
         private readonly Dispatcher _dispatcher;
+        private TrayService? _trayService;
 
         private ServiceStatus _serviceStatus;
         private string _statusText = "正在初始化...";
@@ -46,12 +47,23 @@ namespace dsh_deploy.ViewModels
             ClearPortCommand = new AsyncRelayCommand(ClearPortConflictAsync);
             ClearLogCommand = new RelayCommand(ClearLogs);
             ExitCommand = new RelayCommand(ExitApplication);
+            MinimizeToTrayCommand = new RelayCommand(MinimizeToTray);
 
             // 订阅状态变化
             _dshService.StatusChanged += OnStatusChanged;
 
             // 初始化
             InitializeAsync();
+        }
+
+        /// <summary>
+        /// 初始化托盘服务
+        /// </summary>
+        /// <param name="mainWindow">主窗口</param>
+        public void InitializeTray(Window mainWindow)
+        {
+            _trayService = new TrayService(_dshService.LogService);
+            _trayService.Initialize(mainWindow);
         }
 
         #region 属性
@@ -168,6 +180,7 @@ namespace dsh_deploy.ViewModels
         public ICommand ClearPortCommand { get; }
         public ICommand ClearLogCommand { get; }
         public ICommand ExitCommand { get; }
+        public ICommand MinimizeToTrayCommand { get; }
 
         #endregion
 
@@ -251,7 +264,13 @@ namespace dsh_deploy.ViewModels
 
         private void ExitApplication()
         {
-            Application.Current.Shutdown();
+            _trayService?.Dispose();
+            System.Windows.Application.Current.Shutdown();
+        }
+
+        private void MinimizeToTray()
+        {
+            _trayService?.HideMainWindow();
         }
 
         #endregion
