@@ -20,8 +20,10 @@ namespace dsh_deploy.ViewModels
         private readonly DshService _dshService;
         private readonly Dispatcher _dispatcher;
         private TrayService? _trayService;
+        private DashboardService? _dashboardService;
 
         private ServiceStatus _serviceStatus;
+        private DashboardData _dashboardData;
         private string _statusText = "正在初始化...";
         private string _statusColor = "#9E9E9E";
         private bool _isServiceRunning;
@@ -31,12 +33,15 @@ namespace dsh_deploy.ViewModels
         private int _port = 3080;
         private string _processInfo = string.Empty;
         private DateTime _lastUpdateTime;
+        private string _logFilterKeyword = string.Empty;
+        private LogLevel _logFilterLevel = LogLevel.DEBUG;
 
         public MainViewModel(Dispatcher dispatcher)
         {
             _dispatcher = dispatcher;
             _dshService = new DshService(dispatcher);
             _serviceStatus = new ServiceStatus();
+            _dashboardData = new DashboardData();
 
             // 初始化命令
             StartCommand = new AsyncRelayCommand(StartServiceAsync, CanStartService);
@@ -48,6 +53,7 @@ namespace dsh_deploy.ViewModels
             ClearLogCommand = new RelayCommand(ClearLogs);
             ExitCommand = new RelayCommand(ExitApplication);
             MinimizeToTrayCommand = new RelayCommand(MinimizeToTray);
+            RunDiagnosticsCommand = new AsyncRelayCommand(RunDiagnosticsAsync);
 
             // 订阅状态变化
             _dshService.StatusChanged += OnStatusChanged;
@@ -66,6 +72,16 @@ namespace dsh_deploy.ViewModels
             _trayService.Initialize(mainWindow);
         }
 
+        /// <summary>
+        /// 初始化仪表盘服务
+        /// </summary>
+        public void InitializeDashboard()
+        {
+            _dashboardService = new DashboardService(_dshService.LogService, _dshService, _dispatcher);
+            _dashboardService.DataUpdated += OnDashboardDataUpdated;
+            _dashboardService.StartAutoRefresh(5);
+        }
+
         #region 属性
 
         /// <summary>
@@ -75,6 +91,15 @@ namespace dsh_deploy.ViewModels
         {
             get => _serviceStatus;
             set => SetProperty(ref _serviceStatus, value);
+        }
+
+        /// <summary>
+        /// 仪表盘数据
+        /// </summary>
+        public DashboardData DashboardData
+        {
+            get => _dashboardData;
+            set => SetProperty(ref _dashboardData, value);
         }
 
         /// <summary>
@@ -164,6 +189,37 @@ namespace dsh_deploy.ViewModels
         public ObservableCollection<LogEntry> Logs => _dshService.LogService.Logs;
 
         /// <summary>
+        /// 过滤后的日志集合
+        /// </summary>
+        public ObservableCollection<LogEntry> FilteredLogs => _dshService.LogService.FilteredLogs;
+
+        /// <summary>
+        /// 日志过滤关键词
+        /// </summary>
+        public string LogFilterKeyword
+        {
+            get => _logFilterKeyword;
+            set
+            {
+                SetProperty(ref _logFilterKeyword, value);
+                ApplyLogFilter();
+            }
+        }
+
+        /// <summary>
+        /// 日志过滤级别
+        /// </summary>
+        public LogLevel LogFilterLevel
+        {
+            get => _logFilterLevel;
+            set
+            {
+                SetProperty(ref _logFilterLevel, value);
+                ApplyLogFilter();
+            }
+        }
+
+        /// <summary>
         /// DSH服务
         /// </summary>
         public DshService DshService => _dshService;
@@ -181,6 +237,7 @@ namespace dsh_deploy.ViewModels
         public ICommand ClearLogCommand { get; }
         public ICommand ExitCommand { get; }
         public ICommand MinimizeToTrayCommand { get; }
+        public ICommand RunDiagnosticsCommand { get; }
 
         #endregion
 
@@ -262,6 +319,11 @@ namespace dsh_deploy.ViewModels
             _dshService.LogService.Clear();
         }
 
+        private void ApplyLogFilter()
+        {
+            _dshService.LogService.SetFilter(_logFilterLevel, _logFilterKeyword);
+        }
+
         private void ExitApplication()
         {
             _trayService?.Dispose();
@@ -289,11 +351,98 @@ namespace dsh_deploy.ViewModels
 
                 // 启动状态定时器
                 _dshService.StartStatusTimer();
+
+                // 初始化仪表盘
+                InitializeDashboard();
             }
             catch (Exception ex)
             {
                 _dshService.LogService.Error($"初始化失败: {ex.Message}");
             }
+        }
+
+        private async Task RunDiagnosticsAsync()
+        {
+            _dshService.LogService.Info("开始系统诊断...");
+            
+            var diagnostics = new System.Text.StringBuilder();
+            diagnostics.AppendLine("=== DSH Deploy Manager 系统诊断报告 ===");
+            diagnostics.AppendLine($"生成时间：{DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+            diagnostics.AppendLine();
+
+            // 检查Node.js
+            diagnostics.AppendLine("【Node.js 环境】");
+            try
+            {
+                var nodeVersion = await Task.Run(() =>
+                {
+                    var process = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = "node",
+                        Arguments = "--version",
+                        UseShellExecute = false,
+                        RedirectStandardOutput = true,
+                        CreateNoWindow = true
+                    });
+                    process?.WaitForExit(5000);
+                    return process?.StandardOutput.ReadToEnd()?.Trim() ?? "未安装";
+                });
+                diagnostics.AppendLine($"  版本：{nodeVersion}");
+            }
+            catch
+            {
+                diagnostics.AppendLine("  状态：未安装或无法访问");
+            }
+            diagnostics.AppendLine();
+
+            // 检查DSH
+            diagnostics.AppendLine("【DSH 服务】");
+            diagnostics.AppendLine($"  状态：{ServiceStatus.StateText}");
+            diagnostics.AppendLine($"  端口：{Port}");
+            diagnostics.AppendLine($"  进程：{ProcessInfo ?? "无"}");
+            diagnostics.AppendLine();
+
+            // 检查端口
+            diagnostics.AppendLine("【端口状态】");
+            var portStatus = await _dshService.PortService.CheckPortAsync(Port);
+            diagnostics.AppendLine($"  端口 {Port}：{(portStatus.IsInUse ? "被占用" : "可用")}");
+            if (portStatus.IsInUse)
+            {
+                diagnostics.AppendLine($"  占用进程：{portStatus.ProcessName} (PID: {portStatus.ProcessId})");
+            }
+            diagnostics.AppendLine();
+
+            // 检查健康状态
+            if (_dshService.HealthCheckService != null)
+            {
+                diagnostics.AppendLine("【健康检查】");
+                diagnostics.AppendLine($"  状态：{_dshService.HealthCheckService.HealthStatus.StateText}");
+                diagnostics.AppendLine($"  连续失败：{_dshService.HealthCheckService.HealthStatus.ConsecutiveFailures}次");
+                diagnostics.AppendLine();
+            }
+
+            // 检查更新
+            if (_dshService.UpdateService != null)
+            {
+                diagnostics.AppendLine("【版本信息】");
+                diagnostics.AppendLine($"  当前版本：{_dshService.UpdateService.VersionInfo.CurrentVersion}");
+                diagnostics.AppendLine($"  最新版本：{_dshService.UpdateService.VersionInfo.LatestVersion}");
+                diagnostics.AppendLine($"  有更新：{(_dshService.UpdateService.VersionInfo.HasUpdate ? "是" : "否")}");
+                diagnostics.AppendLine();
+            }
+
+            diagnostics.AppendLine("=== 诊断完成 ===");
+
+            _dshService.LogService.Info(diagnostics.ToString());
+            _dshService.LogService.Info("系统诊断完成，详细报告已输出到日志");
+        }
+
+        private void OnDashboardDataUpdated(object? sender, DashboardData data)
+        {
+            _dispatcher.Invoke(() =>
+            {
+                DashboardData = data;
+            });
         }
 
         private void OnStatusChanged(object? sender, ServiceStatus status)

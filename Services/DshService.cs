@@ -50,6 +50,11 @@ namespace dsh_deploy.Services
         public ConfigService ConfigService => _configService;
 
         /// <summary>
+        /// 端口服务
+        /// </summary>
+        public PortService PortService => _portService;
+
+        /// <summary>
         /// 崩溃恢复服务
         /// </summary>
         public CrashRecoveryService? CrashRecoveryService => _crashRecoveryService;

@@ -42,7 +42,7 @@ namespace dsh_deploy
 
         private void MainWindow_Closed(object? sender, EventArgs e)
         {
-            // 清理托盘服务
+            // 清理资源
             _viewModel.DshService.StopStatusTimer();
         }
     }

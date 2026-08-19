@@ -17,17 +17,20 @@ namespace dsh_deploy.Services
     public class LogService
     {
         private readonly ObservableCollection<LogEntry> _logs = new();
+        private readonly ObservableCollection<LogEntry> _filteredLogs = new();
         private readonly string _logDirectory;
         private readonly string _logFilePath;
         private readonly LogLevel _minLogLevel;
         private readonly Dispatcher _dispatcher;
         private readonly object _lock = new();
+        private LogFilter _currentFilter;
         private const int MaxLogEntries = 1000;
 
         public LogService(Dispatcher dispatcher, LogLevel minLogLevel = LogLevel.INFO)
         {
             _dispatcher = dispatcher;
             _minLogLevel = minLogLevel;
+            _currentFilter = new LogFilter();
             _logDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".dsh", "logs");
             _logFilePath = Path.Combine(_logDirectory, "dsh-wpf.log");
 
@@ -38,6 +41,24 @@ namespace dsh_deploy.Services
         /// 日志集合（用于绑定UI）
         /// </summary>
         public ObservableCollection<LogEntry> Logs => _logs;
+
+        /// <summary>
+        /// 过滤后的日志集合
+        /// </summary>
+        public ObservableCollection<LogEntry> FilteredLogs => _filteredLogs;
+
+        /// <summary>
+        /// 当前过滤器
+        /// </summary>
+        public LogFilter CurrentFilter
+        {
+            get => _currentFilter;
+            set
+            {
+                _currentFilter = value;
+                ApplyFilter();
+            }
+        }
 
         /// <summary>
         /// 记录日志
@@ -114,8 +135,54 @@ namespace dsh_deploy.Services
                 lock (_lock)
                 {
                     _logs.Clear();
+                    _filteredLogs.Clear();
                 }
             });
+        }
+
+        /// <summary>
+        /// 应用过滤器
+        /// </summary>
+        public void ApplyFilter()
+        {
+            _dispatcher.Invoke(() =>
+            {
+                lock (_lock)
+                {
+                    _filteredLogs.Clear();
+                    foreach (var log in _logs)
+                    {
+                        if (_currentFilter.IsMatch(log))
+                        {
+                            _filteredLogs.Add(log);
+                        }
+                    }
+                }
+            });
+        }
+
+        /// <summary>
+        /// 设置过滤器
+        /// </summary>
+        /// <param name="minLevel">最小日志级别</param>
+        /// <param name="keyword">关键词</param>
+        public void SetFilter(LogLevel? minLevel = null, string keyword = "")
+        {
+            _currentFilter = new LogFilter
+            {
+                MinLevel = minLevel ?? LogLevel.DEBUG,
+                Keyword = keyword
+            };
+            ApplyFilter();
+        }
+
+        /// <summary>
+        /// 重置过滤器
+        /// </summary>
+        public void ResetFilter()
+        {
+            _currentFilter = new LogFilter();
+            ApplyFilter();
         }
 
         /// <summary>
